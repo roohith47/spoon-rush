@@ -1,0 +1,18 @@
+export type Card = {id:string;rank:number;suit:string};
+export type Player = {id:string;token:string;name:string;hand:Card[];queue:Card[];view:Card|null;alive:boolean};
+export type Room = {code:string;host:string;players:Player[];phase:'lobby'|'playing'|'roundover'|'finished';round:number;dealer:number;deck:Card[];discard:Card[];grabs:string[];loser:string|null;winner:string|null;updated:number};
+export function shuffle<T>(a:T[]):T[]{const b=[...a];for(let i=b.length-1;i>0;i--){const x=new Uint32Array(1);crypto.getRandomValues(x);const j=x[0]%(i+1);[b[i],b[j]]=[b[j],b[i]];}return b;}
+export function player(name:string,token:string):Player{return {id:crypto.randomUUID(),token,name,hand:[],queue:[],view:null,alive:true};}
+export function begin(r:Room){const live=r.players.filter(p=>p.alive);if(live.length<2)throw Error('At least two players are needed.'); r.round++;r.phase='playing';r.grabs=[];r.loser=null;r.deck=shuffle(Array.from({length:52},(_,i)=>({id:`${r.round}-${i}`,rank:Math.floor(i/4)+1,suit:['♠','♥','♣','♦'][i%4]})));r.discard=[];r.dealer=(r.round-1)%live.length;for(const p of r.players){p.hand=[];p.queue=[];p.view=null;}live.forEach((p,i)=>p.hand=r.deck.splice(0,i===r.dealer?3:4));}
+export function act(r:Room,p:Player,action:string,cardId?:string){
+ if(action==='start'){if(p.id!==r.host)throw Error('Only the host can start.');if(r.phase!=='lobby')throw Error('Game already started.');begin(r);return;}
+ if(action==='next'){if(p.id!==r.host||r.phase!=='roundover')throw Error('Wait for the host to deal.');begin(r);return;}
+ if(action==='rematch'){if(p.id!==r.host||r.phase!=='finished')throw Error('Only the host can start a rematch.');r.players.forEach(x=>x.alive=true);r.round=0;r.winner=null;begin(r);return;}
+ if(r.phase!=='playing'||!p.alive)throw Error('You are not in an active round.');
+ const live=r.players.filter(x=>x.alive),i=live.findIndex(x=>x.id===p.id),dealer=live[r.dealer];
+ if(action==='inspect'){if(p.view) return;if(i===r.dealer){if(p.hand.length!==3)throw Error('Pass a card before drawing.');if(!r.deck.length){r.deck=shuffle(r.discard);r.discard=[];}if(!r.deck.length)throw Error('Waiting for cards to travel around the table.');p.view=r.deck.shift()!;}else {if(!p.queue.length)throw Error('No incoming card yet.');p.view=p.queue.shift()!;}return;}
+ if(action==='pass'){if(!p.view)throw Error('Open an incoming card first.');const all=[...p.hand,p.view],ci=all.findIndex(c=>c.id===cardId);if(ci<0)throw Error('Choose a card to pass.');const [out]=all.splice(ci,1);p.hand=all;p.view=null;if(i===(r.dealer+live.length-1)%live.length)r.discard.push(out);else live[(i+1)%live.length].queue.push(out);return;}
+ if(action==='grab'){if(r.grabs.includes(p.id))return;const ranks=[...p.hand,...(p.view?[p.view]:[])].map(c=>c.rank);if(!r.grabs.length&&!ranks.some(v=>ranks.filter(x=>x===v).length>=4))throw Error('Collect four matching ranks to take the first spoon.');r.grabs.push(p.id);if(r.grabs.length===live.length-1){const loser=live.find(x=>!r.grabs.includes(x.id))!;loser.alive=false;r.loser=loser.id;const left=r.players.filter(x=>x.alive);if(left.length===1){r.winner=left[0].id;r.phase='finished';}else r.phase='roundover';}return;}
+ throw Error('Unknown move.');
+}
+export function publicState(r:Room,p:Player){const live=r.players.filter(x=>x.alive);return {code:r.code,host:r.host,phase:r.phase,round:r.round,grabs:r.grabs,loser:r.loser,winner:r.winner,deckCount:r.deck.length,discardCount:r.discard.length,dealer:live[r.dealer]?.id,players:r.players.map(x=>({id:x.id,name:x.name,alive:x.alive,cardCount:x.hand.length+(x.view?1:0),grabbed:r.grabs.includes(x.id)})),me:{id:p.id,hand:p.hand,queueCount:p.queue.length,view:p.view,alive:p.alive},spoons:Math.max(0,live.length-(r.phase==='playing'?1:0))};}
