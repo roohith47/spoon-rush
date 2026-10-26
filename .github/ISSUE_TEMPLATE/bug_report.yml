@@ -1,0 +1,31 @@
+name: Report a playtest bug
+description: Something broke, felt slow, or was confusing during Spoon Rush.
+title: '[Playtest] '
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for trying Spoon Rush! Please use test nicknames and avoid posting private information or player tokens.
+  - type: textarea
+    id: steps
+    attributes:
+      label: What happened?
+      description: Steps to reproduce, what you expected, and what actually happened.
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: 'iPhone / Safari, Android / Chrome, laptop / Firefox…'
+    validations:
+      required: true
+  - type: input
+    id: players
+    attributes:
+      label: Players and round
+      placeholder: '4 players, round 2; I was the dealer'
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshot, video, or extra details
+      description: Please remove private information before attaching anything.
